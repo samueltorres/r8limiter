@@ -1,0 +1,8 @@
+datastore: redis
+rulesFile: ./env/rules.yaml
+cassandra:
+  hosts: localhost:9042
+  keyspace: svc_ratelimiter
+redis:
+  address: localhost:6379
+  database: 1

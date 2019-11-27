@@ -1,0 +1,53 @@
+domains:
+  - domain: test
+    descriptors:
+      - name: test1
+        labels:
+          - key: t
+            value: v
+        limit:
+          unit: hour
+          requests: 1
+  
+  - domain: api-gateway
+    rules:
+      - name: authorized + user_id
+        labels:
+          - key: authorized
+            value: "true"
+          - key: user_id
+        limit:
+          unit: hour
+          requests: 1
+
+      - name: non-authorized + user_id
+        labels:
+          - key: authorized
+            value: "false"
+          - key: user_id
+        limit:
+          unit: hour
+          requests: 2
+
+      - name: any-user_id
+        labels:
+          - key: user_id
+        limit:
+          unit: hour
+          requests: 3
+
+      - name: authorized
+        labels:
+          - key: authorized
+            value: "true"
+          - key: tenant
+        limit:
+          unit: hour
+          requests: 4
+
+      - name: tenant
+        labels:
+          - key: tenant
+        limit:
+          unit: hour
+          requests: 5

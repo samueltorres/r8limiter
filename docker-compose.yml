@@ -1,0 +1,51 @@
+version: '3'
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.7.2
+    container_name: monitoring-prometheus
+    network_mode: host
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./env/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    logging:
+      driver: none
+
+  grafana:
+    image: grafana/grafana:6.0.1
+    container_name: monitoring-grafana
+    network_mode: host
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./env/grafana/provisioning:/etc/grafana/provisioning
+      - ./env/grafana/dashboards:/var/lib/grafana/dashboards
+    logging:
+      driver: none
+    depends_on:
+      - prometheus
+
+  redis:
+    image: redis
+    container_name: cache
+    ports:
+      - "6379:6379"
+#
+#  cassandra:
+#    image: cassandra:latest
+#    ports:
+#      - "9042:9042"
+#    logging:
+#      driver: none
+#
+#  cassandra-runner:
+#    image: samueltorres/cassandra-migrator
+#    environment:
+#      - CM_HOSTS=cassandra:9042
+#    volumes:
+#      - ./env/cqlscripts:/db/scripts/
+#    depends_on:
+#      - cassandra

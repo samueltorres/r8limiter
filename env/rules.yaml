@@ -1,0 +1,27 @@
+domains:
+  - domain: envoy
+    rules:
+      - name: authenticated users
+        labels:
+          - key: authenticated
+            value: "true"
+          - key: user_id
+        limit:
+          unit: hour
+          requests: 500
+
+      - name: any user
+        labels:
+          - key: user_id
+        limit:
+          unit: hour
+          requests: 1000
+
+      - name: portuguese users
+        labels:
+          - key: country
+            value: "PT"
+          - key: user_id
+        limit:
+          unit: minute
+          requests: 4000
