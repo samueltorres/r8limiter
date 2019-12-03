@@ -14,11 +14,11 @@ func BenchmarkGetRatelimitRule(b *testing.B) {
 
 	descriptor := &rl.RateLimitDescriptor{
 		Entries: []*rl.RateLimitDescriptor_Entry{
-			&rl.RateLimitDescriptor_Entry{
+			{
 				Key:   "authorized",
 				Value: "true",
 			},
-			&rl.RateLimitDescriptor_Entry{
+			{
 				Key:   "tenant",
 				Value: "10000",
 			},
@@ -45,11 +45,11 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "authorized",
 						Value: "true",
 					},
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "user_id",
 						Value: "1234",
 					},
@@ -67,11 +67,11 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "authorized",
 						Value: "false",
 					},
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "user_id",
 						Value: "1234",
 					},
@@ -89,7 +89,7 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "user_id",
 						Value: "1234",
 					},
@@ -107,11 +107,11 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "authorized",
 						Value: "true",
 					},
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "tenant",
 						Value: "10000",
 					},
@@ -129,11 +129,11 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "authorized",
 						Value: "false",
 					},
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "tenant",
 						Value: "10000",
 					},
@@ -151,7 +151,7 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "random",
 						Value: "value",
 					},
@@ -166,7 +166,7 @@ func TestGetRatelimitRule(t *testing.T) {
 			domain: "api-gateway",
 			descriptor: rl.RateLimitDescriptor{
 				Entries: []*rl.RateLimitDescriptor_Entry{
-					&rl.RateLimitDescriptor_Entry{
+					{
 						Key:   "authorized",
 						Value: "true",
 					},
@@ -181,7 +181,7 @@ func TestGetRatelimitRule(t *testing.T) {
 
 			rs, err := NewRuleService(tC.file)
 			if err != nil {
-				assert.FailNow(t, "could not initialize rule service")
+				assert.FailNow(t, "could not initialize rule service", err)
 			}
 
 			descriptor, err := rs.GetRatelimitRule(tC.domain, &tC.descriptor)

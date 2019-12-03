@@ -46,12 +46,16 @@ func (s *Server) handleRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.logger.Info("request", req)
+
 	res, err := s.limiter.ShouldRateLimit(context.Background(), &req)
 	if err != nil {
 		s.logger.Info("could not get rate limit", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+
+	s.logger.Info("response", res)
 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(res); err != nil {

@@ -1,6 +1,8 @@
 package file
 
 import (
+	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"sort"
 	"strings"
 	"sync"
@@ -16,7 +18,7 @@ import (
 type RuleService struct {
 	viper       *viper.Viper
 	rulesConfig *rules.RulesConfig
-	ruleMap     map[string][]*rules.Rule
+	ruleIndex   map[string][]*rules.Rule
 	mux         *sync.RWMutex
 	ruleCount   int
 }
@@ -24,29 +26,29 @@ type RuleService struct {
 func NewRuleService(file string) (*RuleService, error) {
 	v := viper.New()
 	v.SetConfigFile(file)
-	v.WatchConfig()
 	err := v.ReadInConfig()
 	if err != nil {
-		return nil, err
-	}
-
-	var rulesConfig rules.RulesConfig
-	err = v.Unmarshal(&rulesConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateRules(rulesConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "rules file is invalid")
+		return nil, errors.Wrap(err, "error reading in rule file config")
 	}
 
 	fc := &RuleService{
-		viper:       v,
-		rulesConfig: &rulesConfig,
-		mux:         &sync.RWMutex{},
+		viper: v,
+		mux:   &sync.RWMutex{},
 	}
-	fc.createSearchStructure()
+
+	err = fc.loadRules()
+	if err != nil {
+		return nil, errors.Wrap(err, "error loading rules")
+	}
+
+	v.WatchConfig()
+	v.OnConfigChange(func(e fsnotify.Event) {
+		fmt.Println("Config file changed:", e.Name)
+		err := fc.loadRules()
+		if err != nil {
+			fmt.Println(err)
+		}
+	})
 
 	return fc, nil
 }
@@ -61,7 +63,7 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 	for _, ee := range requestDescriptor.Entries {
 		// 1.1 descriptors that contain a key
 		key := domain + "." + ee.Key
-		if descriptors, ok := rs.ruleMap[key]; ok {
+		if descriptors, ok := rs.ruleIndex[key]; ok {
 			for _, desc := range descriptors {
 				ruleMatchCount[desc]++
 			}
@@ -69,7 +71,7 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 
 		// 1.2 descriptors that contain a key & value
 		key = domain + "." + ee.Key + "." + ee.Value
-		if descriptors, ok := rs.ruleMap[key]; ok {
+		if descriptors, ok := rs.ruleIndex[key]; ok {
 			for _, desc := range descriptors {
 				ruleMatchCount[desc]++
 			}
@@ -148,14 +150,32 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 	return selectedDescriptor.rule, nil
 }
 
-func (rs *RuleService) createSearchStructure() {
-	rs.mux.Lock()
-	defer rs.mux.Unlock()
-	rs.ruleMap = make(map[string][]*rules.Rule)
+func (rs *RuleService) loadRules() error {
+	var rulesConfig rules.RulesConfig
+	err := rs.viper.Unmarshal(&rulesConfig)
+	if err != nil {
+		return errors.Wrap(err, "error on rule config unmarshal")
+	}
 
-	for i, domain := range rs.rulesConfig.Domains {
-		for j, rule := range domain.Rules {
-			rs.ruleCount++
+	err = validateRules(rulesConfig)
+	if err != nil {
+		return errors.Wrap(err, "rules file is invalid")
+	}
+
+	rs.mux.Lock()
+	rs.mux.Unlock()
+	rs.rulesConfig = &rulesConfig
+	rs.ruleIndex, rs.ruleCount = createSearchIndex(&rulesConfig)
+
+	return nil
+}
+
+func createSearchIndex(rc *rules.RulesConfig) (map[string][]*rules.Rule, int) {
+	ruleMap := make(map[string][]*rules.Rule)
+	ruleCount := 0
+	for _, domain := range rc.Domains {
+		for _, rule := range domain.Rules {
+			ruleCount++
 
 			for _, k := range rule.Labels {
 				var key string
@@ -167,14 +187,16 @@ func (rs *RuleService) createSearchStructure() {
 					rule.InnerRank = 1000
 				}
 
-				_, exist := rs.ruleMap[key]
+				_, exist := ruleMap[key]
 				if !exist {
-					rs.ruleMap[key] = []*rules.Rule{}
+					ruleMap[key] = []*rules.Rule{}
 				}
-				rs.ruleMap[key] = append(rs.ruleMap[key], &rs.rulesConfig.Domains[i].Rules[j])
+				ruleMap[key] = append(ruleMap[key], rule)
 			}
 		}
 	}
+
+	return ruleMap, ruleCount
 }
 
 func validateRules(rulesConfig rules.RulesConfig) error {
@@ -221,7 +243,7 @@ func validateRules(rulesConfig rules.RulesConfig) error {
 			labelsMap[labelSummary] = true
 
 			// validate rule limit
-			if validateLimitUnit(r.Limit.Unit) {
+			if !validateLimitUnit(r.Limit.Unit) {
 				return errors.Errorf("invalid rule limit unit - domain (%s) rule (%d)", d.Domain, j)
 			}
 			if r.Limit.Requests < 0 {
@@ -236,13 +258,14 @@ func validateRules(rulesConfig rules.RulesConfig) error {
 func validateLimitUnit(unit string) bool {
 	switch unit {
 	case "second":
+		return true
 	case "minute":
+		return true
 	case "hour":
+		return true
 	case "day":
 		return true
 	default:
 		return false
 	}
-
-	return false
 }

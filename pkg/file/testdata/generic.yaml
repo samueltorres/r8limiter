@@ -1,6 +1,6 @@
 domains:
   - domain: test
-    descriptors:
+    rules:
       - name: test1
         labels:
           - key: t

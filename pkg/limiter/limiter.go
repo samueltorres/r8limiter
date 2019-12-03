@@ -79,9 +79,13 @@ func (l *LimiterService) ShouldRateLimit(ctx context.Context, req *pb.RateLimitR
 			response.Statuses[i].Code = pb.RateLimitResponse_OVER_LIMIT
 			response.Statuses[i].LimitRemaining = 0
 		} else {
-			response.OverallCode = pb.RateLimitResponse_OK
+			// if its already over-limit, we shouldnt tag it as ok
+			if response.OverallCode != pb.RateLimitResponse_OVER_LIMIT {
+				response.OverallCode = pb.RateLimitResponse_OK
+			}
+
 			response.Statuses[i].Code = pb.RateLimitResponse_OK
-			response.Statuses[i].LimitRemaining = limitDescriptor.Limit.Requests - rate
+			response.Statuses[i].LimitRemaining = limitDescriptor.Limit.Requests - currUsage
 		}
 	}
 

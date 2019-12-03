@@ -3,11 +3,11 @@ package counters
 import (
 	"context"
 	"errors"
-	"hash/fnv"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/sirupsen/logrus"
 )
 
@@ -56,9 +56,7 @@ func NewCounterService(storage RemoteCounterStorage, logger *logrus.Logger, ctx 
 
 // Add or create a counter
 func (cs *CounterService) Add(ctx context.Context, key string, n uint32, ttl int64) (uint32, error) {
-	hsh := fnv.New32()
-	hsh.Write([]byte(key))
-	shard := hsh.Sum32() % cs.shardCount
+	shard := fnv1a.HashString32(key) % cs.shardCount
 
 	mux := cs.shardedMutexes[shard]
 	mux.Lock()
@@ -82,9 +80,7 @@ func (cs *CounterService) Add(ctx context.Context, key string, n uint32, ttl int
 
 // Peek will see the current counter value for a given key
 func (cs *CounterService) Peek(ctx context.Context, key string) (uint32, error) {
-	hsh := fnv.New32()
-	hsh.Write([]byte(key))
-	shard := hsh.Sum32() % cs.shardCount
+	shard := fnv1a.HashString32(key) % cs.shardCount
 
 	mux := cs.shardedMutexes[shard]
 	mux.RLock()

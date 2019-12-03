@@ -13,12 +13,12 @@ type RulesService interface {
 }
 
 type RulesConfig struct {
-	Domains []DomainRules `yaml:"domains"`
+	Domains []*DomainRules `yaml:"domains"`
 }
 
 type DomainRules struct {
 	Domain string `yaml:"domain"`
-	Rules  []Rule `yaml:"rules"`
+	Rules  []*Rule `yaml:"rules"`
 }
 
 type Rule struct {
