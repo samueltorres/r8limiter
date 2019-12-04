@@ -18,4 +18,5 @@ type CassandraConfig struct {
 type RedisConfig struct {
 	Address  string
 	Database string
+	Password string
 }

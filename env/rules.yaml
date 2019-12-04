@@ -1,33 +1,15 @@
 domains:
   - domain: kong
     rules:
-      
       - labels:
           - key: tenant_id
-            value: 12345
+            value: 10000
         limit:
           unit: minute
-          requests: 10
-
-      - labels:
-          - key: tenant_id
-        limit:
-          unit: hour
-          requests: 10
+          requests: 100
 
       - labels: 
           - key: ip_address
         limit:
           unit: day
           requests: 576876
-      
-      - labels:
-          - key: tenant_id
-            value: 16000
-          - key: country
-            value: PT
-          - key: benefit
-            value: private-sale
-        limit:
-          unit: minute
-          request: 10

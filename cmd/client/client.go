@@ -15,7 +15,7 @@ import (
 func main() {
 
 	var (
-		grpcAddr = flag.String("grpc-addr", ":8081", "gRPC listen address")
+		grpcAddr = flag.String("grpc-addr", "10.152.183.198:8081", "gRPC listen address")
 	)
 
 	var conn *grpc.ClientConn

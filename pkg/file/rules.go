@@ -24,8 +24,14 @@ type RuleService struct {
 }
 
 func NewRuleService(file string) (*RuleService, error) {
+	if file == "" {
+		return nil, errors.Errorf("rules file must be provided")
+	}
+
 	v := viper.New()
 	v.SetConfigFile(file)
+	v.SetConfigType("yaml")
+
 	err := v.ReadInConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading in rule file config")

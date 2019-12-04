@@ -4,13 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/peterbourgon/ff"
+	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/samueltorres/r8limiter/pkg/counters"
 
@@ -29,17 +29,37 @@ import (
 	limiterGrpc "github.com/samueltorres/r8limiter/pkg/transport/grpc"
 	limiterHttp "github.com/samueltorres/r8limiter/pkg/transport/http"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	configFile := flag.String("config-file", "./env/config.yaml", "config file")
-	flag.Parse()
+	fs := flag.NewFlagSet("r8limiter", flag.ExitOnError)
+	var (
+		grpcAddress       = fs.String("grpc-addr", ":8081", "grpc address")
+		httpAddress       = fs.String("http-addr", ":8082", "http address")
+		debugAddress      = fs.String("debug-addr", ":8083", "debug address for metrics and healthcheck")
+		datastore         = fs.String("datastore", "redis", "datastore type (redis/cassandra)")
+		cassandraHost     = fs.String("cassandra-host", "", "cassandra host")
+		cassandraKeyspace = fs.String("cassandra-keyspace", "", "cassandra keyspace")
+		redisAddress      = fs.String("redis-address", "", "redis address")
+		redisDatabase     = fs.String("redis-database", "", "redis database")
+		redisPassword     = fs.String("redis-password", "", "redis password")
+		rulesFile         = fs.String("rules-file", "/env/rules.yaml", "rules file")
+	)
+	ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("R8"))
 
-	serverConfig, err := CreateServerConfig(*configFile)
-	if err != nil {
-		panic(err)
+	var config configs.Config
+	{
+		config.GrpcAddr = *grpcAddress
+		config.HttpAddr = *httpAddress
+		config.DebugAddr = *debugAddress
+		config.Datastore = *datastore
+		config.Cassandra.Hosts = *cassandraHost
+		config.Cassandra.Keyspace = *cassandraKeyspace
+		config.Redis.Address = *redisAddress
+		config.Redis.Database = *redisDatabase
+		config.Redis.Password = *redisPassword
+		config.RulesFile = *rulesFile
 	}
 
 	// todo: add log levels
@@ -49,13 +69,13 @@ func main() {
 	// Rate limiter
 	var limiterService *limiter.LimiterService
 	{
-		ruleService, err := file.NewRuleService(serverConfig.RulesFile)
+		ruleService, err := file.NewRuleService(config.RulesFile)
 		if err != nil {
-			logger.Error("error creating config manager: ", err)
+			logger.Error("error creating rule service: ", err)
 			os.Exit(1)
 		}
 
-		remoteCounterStorage, err := CreateRemoteCounterStorage(serverConfig, logger)
+		remoteCounterStorage, err := CreateRemoteCounterStorage(config, logger)
 		if err != nil {
 			logger.Error("could not create remote counter storage: ", err)
 			os.Exit(1)
@@ -78,22 +98,22 @@ func main() {
 		grpc_prometheus.EnableHandlingTimeHistogram(histogramOpts)
 		grpc_prometheus.Register(grpcServer)
 
-		lis, err := net.Listen("tcp", serverConfig.GrpcAddr)
+		lis, err := net.Listen("tcp", config.GrpcAddr)
 		if err != nil {
 			logger.Error("could not listen on tcp, error: ", err)
 			os.Exit(1)
 		}
 		g.Add(func() error {
-			logger.Info("listening grpc server on addr", serverConfig.GrpcAddr)
+			logger.Info("listening grpc server on addr", config.GrpcAddr)
 			return grpcServer.Serve(lis)
 		}, func(error) {
 			grpcServer.Stop()
 		})
 	}
 	{
-		srv := &http.Server{Addr: serverConfig.DebugAddr}
+		srv := &http.Server{Addr: config.DebugAddr}
 		g.Add(func() error {
-			logger.Info("listening http debug server on addr", serverConfig.DebugAddr)
+			logger.Info("listening http debug server on addr", config.DebugAddr)
 			r := mux.NewRouter()
 			r.Path("/metrics").Handler(promhttp.Handler())
 			srv.Handler = r
@@ -104,11 +124,11 @@ func main() {
 	}
 	{
 		httpTransport := limiterHttp.NewHttpServer(limiterService, logger)
-		httpServer := http.Server{Addr: serverConfig.HttpAddr}
+		httpServer := http.Server{Addr: config.HttpAddr}
 		httpServer.Handler = httpTransport
 
 		g.Add(func() error {
-			logger.Info("listening http server on addr", serverConfig.HttpAddr)
+			logger.Info("listening http server on addr", config.HttpAddr)
 			return httpServer.ListenAndServe()
 		}, func(error) {
 			httpServer.Close()
@@ -132,34 +152,12 @@ func main() {
 	logger.Info("exit", g.Run())
 }
 
-func CreateServerConfig(configFile string) (configs.Config, error) {
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType("yaml")
-	viper.AutomaticEnv()
-	viper.SetDefault("grpcAddr", ":8081")
-	viper.SetDefault("httpAddr", ":8082")
-	viper.SetDefault("debugAddr", ":8083")
-	viper.SetDefault("datastore", "redis")
-
-	err := viper.ReadInConfig()
-	if err != nil {
-		return configs.Config{}, fmt.Errorf("fatal error on config file: %s", err)
-	}
-
-	var serverConfig configs.Config
-	err = viper.Unmarshal(&serverConfig)
-	if err != nil {
-		return configs.Config{}, fmt.Errorf("fatal error unmarshalling config file: %s", err)
-	}
-
-	return serverConfig, nil
-}
-
 func CreateRemoteCounterStorage(config configs.Config, logger *logrus.Logger) (counters.RemoteCounterStorage, error) {
 	switch config.Datastore {
 	case "redis":
 		redisClient := rediscli.NewClient(&rediscli.Options{
-			Addr: config.Redis.Address,
+			Addr:     config.Redis.Address,
+			Password: config.Redis.Password,
 		})
 
 		_, err := redisClient.Ping().Result()
