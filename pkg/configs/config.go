@@ -8,6 +8,7 @@ type Config struct {
 	Cassandra CassandraConfig
 	Redis     RedisConfig
 	RulesFile string
+	LogLevel  string
 }
 
 type CassandraConfig struct {

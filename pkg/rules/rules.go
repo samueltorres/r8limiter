@@ -17,7 +17,7 @@ type RulesConfig struct {
 }
 
 type DomainRules struct {
-	Domain string `yaml:"domain"`
+	Domain string  `yaml:"domain"`
 	Rules  []*Rule `yaml:"rules"`
 }
 
@@ -25,6 +25,7 @@ type Rule struct {
 	Name      string            `yaml:"name"`
 	Labels    []DescriptorLabel `yaml:"labels"`
 	Limit     Limit             `yaml:"limit"`
+	SyncRate  int               `yaml:"syncRate"`
 	InnerRank int
 }
 

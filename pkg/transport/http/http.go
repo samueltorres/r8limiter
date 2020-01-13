@@ -2,63 +2,98 @@ package http
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/sirupsen/logrus"
 	"net/http"
+	"net/http/pprof"
 
-	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v2"
-	"github.com/gorilla/mux"
+	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/samueltorres/r8limiter/pkg/limiter"
+	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	limiter *limiter.LimiterService
-	router  *mux.Router
-	logger  *logrus.Logger
+	handler         *rateLimitingHandler
+	srv             *http.Server
+	router          *httprouter.Router
+	opts            options
+	metricsRegistry *prometheus.Registry
+	logger          *logrus.Logger
 }
 
-func NewHttpServer(limiter *limiter.LimiterService, logger *logrus.Logger) *Server {
-	server := &Server{
-		router:  mux.NewRouter(),
-		limiter: limiter,
-		logger:  logger,
+func New(
+	limiter *limiter.LimiterService,
+	logger *logrus.Logger,
+	metricsRegistry *prometheus.Registry,
+	opts ...Option) *Server {
+
+	options := options{}
+	for _, o := range opts {
+		o.apply(&options)
 	}
+
+	handler := &rateLimitingHandler{limiter: limiter, logger: logger}
+	router := httprouter.New()
+
+	server := &Server{
+		handler:         handler,
+		router:          router,
+		metricsRegistry: metricsRegistry,
+		opts:            options,
+		logger:          logger,
+		srv:             &http.Server{Addr: options.listen, Handler: router},
+	}
+
 	server.registerRoutes()
+
 	return server
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.router.ServeHTTP(w, req)
-}
-
 func (s *Server) registerRoutes() {
-	s.router.HandleFunc("/ratelimit", s.handleRateLimit).Methods("POST")
+
+	// middlewares
+	mm := NewMetricsMiddleware(s.metricsRegistry)
+
+	// rate limiting
+	s.router.HandlerFunc("POST", "/ratelimit", mm.Handler("/rateLimit", s.handler.handleRateLimit))
+
+	// metrics
+	s.router.Handler("GET", "/metrics", promhttp.HandlerFor(s.metricsRegistry, promhttp.HandlerOpts{}))
+
+	// profiling
+	s.router.HandlerFunc("GET", "/debug/pprof/", pprof.Index)
+	s.router.HandlerFunc("GET", "/debug/pprof/cmdline", pprof.Cmdline)
+	s.router.HandlerFunc("GET", "/debug/pprof/profile", pprof.Profile)
+	s.router.HandlerFunc("GET", "/debug/pprof/symbol", pprof.Symbol)
+	s.router.HandlerFunc("GET", "/debug/pprof/trace", pprof.Trace)
+
+	// healthcheck
+	// todo: add healthcheck handlers
 }
 
-func (s *Server) handleRateLimit(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func (s *Server) Start() error {
+	s.logger.Info("listening for http address ", s.opts.listen)
+	return errors.Wrap(s.srv.ListenAndServe(), "serve http")
+}
 
-	var req pb.RateLimitRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		s.logger.Info("could not decode request", err)
-		w.WriteHeader(http.StatusNotFound)
+func (s *Server) Stop(err error) {
+	if err == http.ErrServerClosed {
+		s.logger.Info("internal server closed unexpectedly")
 		return
 	}
 
-	s.logger.Info("request", req)
+	defer s.logger.Info("internal server shutdown", "err", err)
 
-	res, err := s.limiter.ShouldRateLimit(context.Background(), &req)
-	if err != nil {
-		s.logger.Info("could not get rate limit", err)
-		w.WriteHeader(http.StatusNotFound)
+	if s.opts.gracePeriod == 0 {
+		s.srv.Close()
 		return
 	}
 
-	s.logger.Info("response", res)
+	ctx, cancel := context.WithTimeout(context.Background(), s.opts.gracePeriod)
+	defer cancel()
 
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(res); err != nil {
-		panic(err)
+	if err := s.srv.Shutdown(ctx); err != nil {
+		s.logger.Error("internal server shut down failed", "err", err)
 	}
 }

@@ -3,12 +3,11 @@ domains:
     rules:
       - labels:
           - key: tenant_id
-            value: 10000
+        syncRate: 3
         limit:
           unit: minute
-          requests: 100
-
-      - labels: 
+          requests: 100000000
+      - labels:
           - key: ip_address
         limit:
           unit: day

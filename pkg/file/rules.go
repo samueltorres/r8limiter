@@ -2,28 +2,26 @@ package file
 
 import (
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"sort"
 	"strings"
 	"sync"
 
+	rl "github.com/envoyproxy/go-control-plane/envoy/api/v2/ratelimit"
+	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
-
 	"github.com/samueltorres/r8limiter/pkg/rules"
 	"github.com/spf13/viper"
-
-	rl "github.com/envoyproxy/go-control-plane/envoy/api/v2/ratelimit"
 )
 
-type RuleService struct {
+type RulesService struct {
+	mux         *sync.RWMutex
 	viper       *viper.Viper
 	rulesConfig *rules.RulesConfig
-	ruleIndex   map[string][]*rules.Rule
-	mux         *sync.RWMutex
+	rulesIndex  map[string][]*rules.Rule
 	ruleCount   int
 }
 
-func NewRuleService(file string) (*RuleService, error) {
+func NewRuleService(file string) (*RulesService, error) {
 	if file == "" {
 		return nil, errors.Errorf("rules file must be provided")
 	}
@@ -37,7 +35,7 @@ func NewRuleService(file string) (*RuleService, error) {
 		return nil, errors.Wrap(err, "error reading in rule file config")
 	}
 
-	fc := &RuleService{
+	fc := &RulesService{
 		viper: v,
 		mux:   &sync.RWMutex{},
 	}
@@ -59,25 +57,25 @@ func NewRuleService(file string) (*RuleService, error) {
 	return fc, nil
 }
 
-func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.RateLimitDescriptor) (*rules.Rule, error) {
+func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.RateLimitDescriptor) (*rules.Rule, error) {
 	rs.mux.RLock()
 	defer rs.mux.RUnlock()
 
 	ruleMatchCount := make(map[*rules.Rule]int, rs.ruleCount)
 
 	// 1. find possible matches
-	for _, ee := range requestDescriptor.Entries {
+	for _, entry := range rateLimitDescriptor.Entries {
 		// 1.1 descriptors that contain a key
-		key := domain + "." + ee.Key
-		if descriptors, ok := rs.ruleIndex[key]; ok {
+		key := domain + "." + entry.Key
+		if descriptors, ok := rs.rulesIndex[key]; ok {
 			for _, desc := range descriptors {
 				ruleMatchCount[desc]++
 			}
 		}
 
 		// 1.2 descriptors that contain a key & value
-		key = domain + "." + ee.Key + "." + ee.Value
-		if descriptors, ok := rs.ruleIndex[key]; ok {
+		key = domain + "." + entry.Key + "." + entry.Value
+		if descriptors, ok := rs.rulesIndex[key]; ok {
 			for _, desc := range descriptors {
 				ruleMatchCount[desc]++
 			}
@@ -93,19 +91,21 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 		rule  *rules.Rule
 		count int
 	}
+
 	// todo: #performance rankedMatches is escaping to the heap, please review later
 	rankedMatches := make([]rankedMatch, 0, len(ruleMatchCount))
 	requestDescriptorLabels := make(map[string]bool)
-	for _, label := range requestDescriptor.Entries {
+	for _, label := range rateLimitDescriptor.Entries {
 		requestDescriptorLabels[label.Key] = true
 		requestDescriptorLabels[label.Key+"."+label.Value] = true
 	}
 
-	for k, v := range ruleMatchCount {
+	for rule, count := range ruleMatchCount {
+		// todo: add support for regex on rules here
 		// filter out non existing labels
-		if len(requestDescriptor.Entries) >= len(k.Labels) {
+		if len(rateLimitDescriptor.Entries) >= len(rule.Labels) {
 			descriptorEntriesValid := true
-			for _, label := range k.Labels {
+			for _, label := range rule.Labels {
 				// if there's a label key not present
 				if _, exists := requestDescriptorLabels[label.Key]; !exists {
 					descriptorEntriesValid = false
@@ -122,7 +122,7 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 			}
 
 			if descriptorEntriesValid {
-				rankedMatches = append(rankedMatches, rankedMatch{k, v})
+				rankedMatches = append(rankedMatches, rankedMatch{rule, count})
 			}
 		}
 	}
@@ -140,7 +140,7 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 	selectedDescriptor := rankedMatches[0]
 	maxInnerRank := rankedMatches[0].rule.InnerRank
 
-	// check for ties in matches
+	// 2.3 check for ties in matches
 	for j := 1; j < len(rankedMatches); j++ {
 		// if there's a tie we need to find the one with the biggest rank
 		if selectedDescriptor.count == rankedMatches[j].count {
@@ -156,7 +156,7 @@ func (rs *RuleService) GetRatelimitRule(domain string, requestDescriptor *rl.Rat
 	return selectedDescriptor.rule, nil
 }
 
-func (rs *RuleService) loadRules() error {
+func (rs *RulesService) loadRules() error {
 	var rulesConfig rules.RulesConfig
 	err := rs.viper.Unmarshal(&rulesConfig)
 	if err != nil {
@@ -171,7 +171,7 @@ func (rs *RuleService) loadRules() error {
 	rs.mux.Lock()
 	rs.mux.Unlock()
 	rs.rulesConfig = &rulesConfig
-	rs.ruleIndex, rs.ruleCount = createSearchIndex(&rulesConfig)
+	rs.rulesIndex, rs.ruleCount = createSearchIndex(&rulesConfig)
 
 	return nil
 }
