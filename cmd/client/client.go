@@ -128,9 +128,9 @@ func httpCaller(wg *sync.WaitGroup, client *http.Client, addr string, cancel cha
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			fmt.Printf("http response error: %v", err)
-			resp.Body.Close()
 			continue
 		}
 

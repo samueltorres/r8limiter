@@ -9,7 +9,7 @@ All rate limiting rules are being described in yaml format.Please look at the fo
 
 ```yaml
 domains:
-  - domain: api-gateway
+  - domain: envoy
     rules:
       - name: authenticated users
         labels:
@@ -18,14 +18,16 @@ domains:
           - key: user_id
         limit:
           unit: hour
-          requests: 10000
+          requests: 500
+        syncRate: 1
 
       - name: any user
         labels:
           - key: user_id
         limit:
           unit: hour
-          requests: 500
+          requests: 1000
+        syncRate: -1
 ```
 
 In this pretty simple example we are limiting an authenticated user to 10000 requests per hour, and all the other users can do 500 per hour.
@@ -56,6 +58,6 @@ domains:
 
 ## Datastores
 
-This rate limiter functions primarily in-memory, but as there can be multiple instances across clusters, it needs a centralized data-store in order to have all instances with the same amount of requests for a given request descriptor. It will synchronize the counters will all the other instances asynchronously, using a [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) counter. 
+This rate limiter functions primarily in-memory, but as there can be multiple instances across clusters, it needs a centralized data-store in order to have all instances with the same amount of requests for a given request descriptor.
 
 Currently it supports Redis and Cassandra.

@@ -179,5 +179,3 @@ func generateKey(desc *rl.RateLimitDescriptor, rule *rules.Rule, timeValue int64
 
 	return strings.Join(descriptorKeyValues, "_") + ":" + rule.Limit.Unit + ":" + strconv.FormatInt(timeValue, 10)
 }
-
-func newLimiterMetrics() {}

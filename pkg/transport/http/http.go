@@ -3,7 +3,7 @@ package http
 import (
 	"context"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -56,20 +56,13 @@ func (s *Server) registerRoutes() {
 	mm := NewMetricsMiddleware(s.metricsRegistry)
 
 	// rate limiting
-	s.router.HandlerFunc("POST", "/ratelimit", mm.Handler("/rateLimit", s.handler.handleRateLimit))
+	s.router.HandlerFunc(http.MethodPost, "/ratelimit", mm.Handler("/rateLimit", s.handler.handleRateLimit))
 
 	// metrics
-	s.router.Handler("GET", "/metrics", promhttp.HandlerFor(s.metricsRegistry, promhttp.HandlerOpts{}))
+	s.router.Handler(http.MethodGet, "/metrics", promhttp.HandlerFor(s.metricsRegistry, promhttp.HandlerOpts{}))
 
 	// profiling
-	s.router.HandlerFunc("GET", "/debug/pprof/", pprof.Index)
-	s.router.HandlerFunc("GET", "/debug/pprof/cmdline", pprof.Cmdline)
-	s.router.HandlerFunc("GET", "/debug/pprof/profile", pprof.Profile)
-	s.router.HandlerFunc("GET", "/debug/pprof/symbol", pprof.Symbol)
-	s.router.HandlerFunc("GET", "/debug/pprof/trace", pprof.Trace)
-
-	// healthcheck
-	// todo: add healthcheck handlers
+	s.router.Handler(http.MethodGet, "/debug/pprof/:item", http.DefaultServeMux)
 }
 
 func (s *Server) Start() error {
