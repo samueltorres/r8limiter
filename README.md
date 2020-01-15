@@ -101,9 +101,26 @@ domains:
 ```
 
 # Remote Storages
-
 When synchronization is needed, a remote storage must be provided, currently it supports Redis and Cassandra.
 
+# Run locally
+
+Spin up environment using docker-compose
+
+```bash
+docker-compose up
+```
+
+Spin up the r8limiter server
+
+```bash
+go run cmd/server/server.go --rules-file ./env/rules.yaml
+```
+
+Spin up a test client
+```bash
+go run cmd/client/client.go
+```
 
 # License
 This project is licensed under the MIT open source license.
