@@ -113,7 +113,7 @@ func parseConfig() configs.Config {
 		redisAddress      = fs.String("redis-address", "", "redis address")
 		redisDatabase     = fs.Int("redis-database", 0, "redis database")
 		redisPassword     = fs.String("redis-password", "", "redis password")
-		rulesFile         = fs.String("rules-file", "./env/rules.yaml", "rules file")
+		rulesFile         = fs.String("rules-file", "/env/rules.yaml", "rules file")
 		logLevel          = fs.String("log-level", "info", "log level (panic, fatal, error, warn, info, debug, trace)")
 	)
 	ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("R8"))
