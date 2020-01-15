@@ -25,8 +25,9 @@ func NewMetricsMiddleware(registerer prometheus.Registerer) *metricsMiddleware {
 
 	requestLatency := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "http_request_duration_seconds",
-			Help: "Duration of the http requests",
+			Name:    "http_request_duration_seconds",
+			Help:    "Duration of the http requests",
+			Buckets: prometheus.ExponentialBuckets(0.00005, 2, 12),
 		},
 		[]string{"handler", "method", "status"})
 

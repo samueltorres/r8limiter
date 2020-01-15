@@ -24,7 +24,10 @@ import (
 )
 
 func main() {
+	// configs
 	config := parseConfig()
+
+	//logging
 	logger := createLogger(config)
 
 	// metrics
@@ -108,7 +111,7 @@ func parseConfig() configs.Config {
 		cassandraHost     = fs.String("cassandra-host", "", "cassandra host")
 		cassandraKeyspace = fs.String("cassandra-keyspace", "", "cassandra keyspace")
 		redisAddress      = fs.String("redis-address", "", "redis address")
-		redisDatabase     = fs.String("redis-database", "", "redis database")
+		redisDatabase     = fs.Int("redis-database", 0, "redis database")
 		redisPassword     = fs.String("redis-password", "", "redis password")
 		rulesFile         = fs.String("rules-file", "./env/rules.yaml", "rules file")
 		logLevel          = fs.String("log-level", "info", "log level (panic, fatal, error, warn, info, debug, trace)")
@@ -135,6 +138,8 @@ func parseConfig() configs.Config {
 
 func createLogger(config configs.Config) *logrus.Logger {
 	logger := logrus.StandardLogger()
+	logger.SetFormatter(&logrus.JSONFormatter{})
+
 	level, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
 		level = logrus.ErrorLevel
@@ -152,6 +157,7 @@ func createCounterStorage(config configs.Config, logger *logrus.Logger, metrics 
 		redisClient := rediscli.NewClient(&rediscli.Options{
 			Addr:     config.Redis.Address,
 			Password: config.Redis.Password,
+			DB:       config.Redis.Database,
 		})
 
 		_, err := redisClient.Ping().Result()
