@@ -3,23 +3,17 @@ module github.com/samueltorres/r8limiter
 go 1.13
 
 require (
-	github.com/bitly/go-hostpool v0.1.0 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/cncf/udpa/go v0.0.0-20191230090109-edbea6a78f6d // indirect
 	github.com/envoyproxy/go-control-plane v0.9.2
 	github.com/fsnotify/fsnotify v1.4.7
-	github.com/go-kit/kit v0.9.0
 	github.com/go-redis/redis/v7 v7.0.0-beta.5
-	github.com/gocql/gocql v0.0.0-20200103014340-68f928edb90a
-	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.4.0 // indirect
-	github.com/google/pprof v0.0.0-20191218002539-d4f498aebedc // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20191106031601-ce3c9ade29de // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
-	github.com/minio/highwayhash v1.0.0
 	github.com/oklog/run v1.1.0
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.8.1 // indirect

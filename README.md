@@ -15,12 +15,6 @@ go get github.com/samueltorres/r8limiter
 # Usage
 ```
 Usage of r8limiter:
-  -cassandra-host string
-        cassandra host
-  -cassandra-keyspace string
-        cassandra keyspace
-  -datastore string
-        datastore type (redis/cassandra) (default "redis")
   -grpc-addr string
         grpc address (default ":8081")
   -http-addr string
@@ -101,7 +95,7 @@ domains:
 ```
 
 # Remote Storages
-When synchronization is needed, a remote storage must be provided, currently it supports Redis and Cassandra.
+When synchronization is needed, a remote storage must be provided, currently it only supports Redis.
 
 # Run locally
 

@@ -8,12 +8,10 @@ import (
 	"syscall"
 
 	rediscli "github.com/go-redis/redis/v7"
-	"github.com/gocql/gocql"
 	"github.com/oklog/run"
 	"github.com/peterbourgon/ff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
-	"github.com/samueltorres/r8limiter/pkg/cassandra"
 	"github.com/samueltorres/r8limiter/pkg/configs"
 	"github.com/samueltorres/r8limiter/pkg/file"
 	"github.com/samueltorres/r8limiter/pkg/limiter"
@@ -104,17 +102,14 @@ func main() {
 func parseConfig() configs.Config {
 	fs := flag.NewFlagSet("r8limiter", flag.ExitOnError)
 	var (
-		grpcAddress       = fs.String("grpc-addr", ":8081", "grpc address")
-		httpAddress       = fs.String("http-addr", ":8082", "http address")
-		debugAddress      = fs.String("debug-addr", ":8083", "debug address for metrics and healthcheck")
-		datastore         = fs.String("datastore", "redis", "datastore type (redis/cassandra)")
-		cassandraHost     = fs.String("cassandra-host", "", "cassandra host")
-		cassandraKeyspace = fs.String("cassandra-keyspace", "", "cassandra keyspace")
-		redisAddress      = fs.String("redis-address", "", "redis address")
-		redisDatabase     = fs.Int("redis-database", 0, "redis database")
-		redisPassword     = fs.String("redis-password", "", "redis password")
-		rulesFile         = fs.String("rules-file", "/env/rules.yaml", "rules file")
-		logLevel          = fs.String("log-level", "info", "log level (panic, fatal, error, warn, info, debug, trace)")
+		grpcAddress   = fs.String("grpc-addr", ":8081", "grpc address")
+		httpAddress   = fs.String("http-addr", ":8082", "http address")
+		debugAddress  = fs.String("debug-addr", ":8083", "debug address for metrics and healthcheck")
+		redisAddress  = fs.String("redis-address", "", "redis address")
+		redisDatabase = fs.Int("redis-database", 0, "redis database")
+		redisPassword = fs.String("redis-password", "", "redis password")
+		rulesFile     = fs.String("rules-file", "/env/rules.yaml", "rules file")
+		logLevel      = fs.String("log-level", "info", "log level (panic, fatal, error, warn, info, debug, trace)")
 	)
 	ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("R8"))
 
@@ -123,9 +118,6 @@ func parseConfig() configs.Config {
 		config.GrpcAddr = *grpcAddress
 		config.HttpAddr = *httpAddress
 		config.DebugAddr = *debugAddress
-		config.Datastore = *datastore
-		config.Cassandra.Hosts = *cassandraHost
-		config.Cassandra.Keyspace = *cassandraKeyspace
 		config.Redis.Address = *redisAddress
 		config.Redis.Database = *redisDatabase
 		config.Redis.Password = *redisPassword
@@ -152,33 +144,16 @@ func createLogger(config configs.Config) *logrus.Logger {
 }
 
 func createCounterStorage(config configs.Config, logger *logrus.Logger, metrics prometheus.Registerer) (limiter.CounterStorage, error) {
-	switch config.Datastore {
-	case "redis":
-		redisClient := rediscli.NewClient(&rediscli.Options{
-			Addr:     config.Redis.Address,
-			Password: config.Redis.Password,
-			DB:       config.Redis.Database,
-		})
+	redisClient := rediscli.NewClient(&rediscli.Options{
+		Addr:     config.Redis.Address,
+		Password: config.Redis.Password,
+		DB:       config.Redis.Database,
+	})
 
-		_, err := redisClient.Ping().Result()
-		if err != nil {
-			return nil, fmt.Errorf("could not connect to redis : %w", err)
-		}
-
-		return redis.NewStorage(redisClient, logger, metrics), nil
-
-	case "cassandra":
-		cluster := gocql.NewCluster(config.Cassandra.Hosts)
-		cluster.Keyspace = config.Cassandra.Keyspace
-		cluster.Consistency = gocql.LocalQuorum
-		session, err := cluster.CreateSession()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create cassadra session : %w", err)
-		}
-
-		return cassandra.NewRemoteStorage(logger, session), nil
-	default:
-		return nil, fmt.Errorf("invalid datastore %s", config.Datastore)
+	_, err := redisClient.Ping().Result()
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to redis : %w", err)
 	}
+
+	return redis.NewStorage(redisClient, logger, metrics), nil
 }

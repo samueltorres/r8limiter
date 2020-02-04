@@ -42,19 +42,3 @@ services:
   #     - R8_RULES_FILE=/env/rules.yaml
   #   volumes:
   #     - ./env:/env
-#
-#  cassandra:
-#    image: cassandra:latest
-#    ports:
-#      - "9042:9042"
-#    logging:
-#      driver: none
-#
-#  cassandra-runner:
-#    image: samueltorres/cassandra-migrator
-#    environment:
-#      - CM_HOSTS=cassandra:9042
-#    volumes:
-#      - ./env/cqlscripts:/db/scripts/
-#    depends_on:
-#      - cassandra

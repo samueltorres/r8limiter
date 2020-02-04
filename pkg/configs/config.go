@@ -5,15 +5,9 @@ type Config struct {
 	HttpAddr  string
 	DebugAddr string
 	Datastore string
-	Cassandra CassandraConfig
 	Redis     RedisConfig
 	RulesFile string
 	LogLevel  string
-}
-
-type CassandraConfig struct {
-	Hosts    string
-	Keyspace string
 }
 
 type RedisConfig struct {
