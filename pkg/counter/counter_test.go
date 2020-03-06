@@ -277,7 +277,7 @@ func TestCounterService_RunSync_SynchronizesCounters(t *testing.T) {
 	counterService.Increment(context.Background(), key, 5, time.Now().Unix()+30, 1)
 	time.Sleep(1 * time.Second)
 	counterService.Increment(context.Background(), key, 5, time.Now().Unix()+30, 1)
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	close(cancel)
 	<-errch
