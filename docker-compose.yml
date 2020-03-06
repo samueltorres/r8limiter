@@ -36,7 +36,6 @@ services:
   
   # r8:
   #   build: .
-  #   network_mode: host
   #   environment:
   #     - R8_REDIS_ADDRESS=localhost:6379
   #     - R8_RULES_FILE=/env/rules.yaml
