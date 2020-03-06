@@ -34,7 +34,7 @@ Usage of r8limiter:
 # Rules Configuration
 Rate limiting rules are being described in yaml format. 
 
-Please look at the following example:
+Please look at the following example, in which we are limiting any authenticated user to make 500 requests per hour, all the other users can do 1000 per hour. 
 
 ```yaml
 domains:
@@ -58,18 +58,78 @@ domains:
           requests: 1000
         syncRate: -1
 ```
+### Synchronization
 
-In this pretty simple example we are limiting any authenticated user to make 500 requests per hour, and all the other users can do 1000 per hour. 
-
-You're able to configure the synchronization rate for a given rule, as sometimes we cannot be lenient doing rate limiting (e.g - enterprise offerings), and we need to have a synchronized rate limiter. In other use cases we may even do rate limiting, just to protect the server from a DDOS attack, and an in-mem rate limit is sufficient. 
+This implementation offers you the possibility of configuring the synchronization rate for a given rule.
 
 | sync rate |                                                       |
 |-----------|-------------------------------------------------------|
 | -1        | no synchronization                                    |
-| 0         | all rate limit requests go through the remote storage |
+| 0 (default)         | all rate limit requests go through the remote storage |
 | [1-n]     | number of seconds between synchronizations            |
 
+Sometimes the rate limiter needs to be strict e.g number of requests per client tier on an enterprise offering.
 
+```yaml
+domains:
+  - domain: api-gateway
+    rules:
+      - name: starter users
+        labels:
+          - key: user_type
+            value: starter
+        limit:
+          unit: minute
+          requests: 500
+        syncRate: 0
+      - name: premium users
+        labels:
+          - key: user_type
+            value: premium
+        limit:
+          unit: minute
+          requests: 20000
+        syncRate: 0
+```
+
+In other use cases we can be very lenient in the number of requests, like protecting a server from DDOS attacks, and the in-mem rate limiter will be sufficient.
+
+```yaml
+domains:
+  - domain: api-gateway
+    rules:
+      - name: ddos protection
+        labels:
+          - key: ip_address
+        limit:
+          unit: second
+          requests: 5000
+        syncRate: -1
+      - name: tenant
+        labels:
+          - key: tenant
+        limit:
+          unit: minute
+          requests: 50000
+        syncRate: 3
+```
+
+If we want to be a little bit strict, we can have an in-mem rate limiter that synchronizes the counters with the remote storage after n seconds, thereforew we are sure that all instances of the rate limiter have.
+
+```yaml
+domains:
+  - domain: api-gateway
+    rules:
+      - name: tenant
+        labels:
+          - key: tenant
+        limit:
+          unit: minute
+          requests: 50000
+        syncRate: 3
+```
+
+### Other examples
 This configuration schema allows you to configure different rate limits configurations for each kind use case you'll need, e.g - limiting mongodb accesses to 10000 reqs/hour, limiting Portuguese users to 20 reqs/min etc.
 
 ```yaml
