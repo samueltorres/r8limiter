@@ -15,20 +15,26 @@ go get github.com/samueltorres/r8limiter
 # Usage
 ```
 Usage of r8limiter:
+  -debug-addr string
+    	debug address for metrics and healthcheck (default ":8083")
   -grpc-addr string
-        grpc address (default ":8081")
+    	grpc address (default ":8081")
   -http-addr string
-        http address (default ":8082")
+    	http address (default ":8082")
   -log-level string
-        log level (panic, fatal, error, warn, info, debug, trace) (default "info")
+    	log level (panic, fatal, error, warn, info, debug, trace) (default "info")
   -redis-address string
-        redis address
+    	redis address
   -redis-database int
-        redis database
+    	redis database
   -redis-password string
-        redis password
+    	redis password
   -rules-file string
-        rules file (default "env/rules.yaml")
+    	rules file (default "/env/rules.yaml")
+  -shutdown-grace-period duration
+    	shutdown grace period for grpc and http servers (default 30s)
+  -sync-batch-size int
+    	number of counters to sync in each batch (default 1000)
 ```
 
 # Rules Configuration
