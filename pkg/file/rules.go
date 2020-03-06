@@ -9,15 +9,15 @@ import (
 	rl "github.com/envoyproxy/go-control-plane/envoy/api/v2/ratelimit"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
-	"github.com/samueltorres/r8limiter/pkg/rules"
+	"github.com/samueltorres/r8limiter/pkg/limiter"
 	"github.com/spf13/viper"
 )
 
 type RulesService struct {
 	mux         *sync.RWMutex
 	viper       *viper.Viper
-	rulesConfig *rules.RulesConfig
-	rulesIndex  map[string][]*rules.Rule
+	rulesConfig *limiter.RulesConfig
+	rulesIndex  map[string][]*limiter.Rule
 	ruleCount   int
 }
 
@@ -57,11 +57,11 @@ func NewRuleService(file string) (*RulesService, error) {
 	return fc, nil
 }
 
-func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.RateLimitDescriptor) (*rules.Rule, error) {
+func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.RateLimitDescriptor) (*limiter.Rule, error) {
 	rs.mux.RLock()
 	defer rs.mux.RUnlock()
 
-	ruleMatchCount := make(map[*rules.Rule]int, rs.ruleCount)
+	ruleMatchCount := make(map[*limiter.Rule]int, rs.ruleCount)
 
 	// 1. find possible matches
 	for _, entry := range rateLimitDescriptor.Entries {
@@ -83,12 +83,12 @@ func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.
 	}
 
 	if len(ruleMatchCount) == 0 {
-		return nil, rules.ErrNoMatchedRule
+		return nil, limiter.ErrNoMatchedRule
 	}
 
 	// 2. filter out matches
 	type rankedMatch struct {
-		rule  *rules.Rule
+		rule  *limiter.Rule
 		count int
 	}
 
@@ -128,7 +128,7 @@ func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.
 	}
 
 	if len(rankedMatches) == 0 {
-		return nil, rules.ErrNoMatchedRule
+		return nil, limiter.ErrNoMatchedRule
 	}
 
 	// 2.1 sort matches by count descending
@@ -157,7 +157,7 @@ func (rs *RulesService) GetRatelimitRule(domain string, rateLimitDescriptor *rl.
 }
 
 func (rs *RulesService) loadRules() error {
-	var rulesConfig rules.RulesConfig
+	var rulesConfig limiter.RulesConfig
 	err := rs.viper.Unmarshal(&rulesConfig)
 	if err != nil {
 		return errors.Wrap(err, "error on rule config unmarshal")
@@ -176,8 +176,8 @@ func (rs *RulesService) loadRules() error {
 	return nil
 }
 
-func createSearchIndex(rc *rules.RulesConfig) (map[string][]*rules.Rule, int) {
-	ruleMap := make(map[string][]*rules.Rule)
+func createSearchIndex(rc *limiter.RulesConfig) (map[string][]*limiter.Rule, int) {
+	ruleMap := make(map[string][]*limiter.Rule)
 	ruleCount := 0
 	for _, domain := range rc.Domains {
 		for _, rule := range domain.Rules {
@@ -195,7 +195,7 @@ func createSearchIndex(rc *rules.RulesConfig) (map[string][]*rules.Rule, int) {
 
 				_, exist := ruleMap[key]
 				if !exist {
-					ruleMap[key] = []*rules.Rule{}
+					ruleMap[key] = []*limiter.Rule{}
 				}
 				ruleMap[key] = append(ruleMap[key], rule)
 			}
@@ -205,7 +205,7 @@ func createSearchIndex(rc *rules.RulesConfig) (map[string][]*rules.Rule, int) {
 	return ruleMap, ruleCount
 }
 
-func validateRules(rulesConfig rules.RulesConfig) error {
+func validateRules(rulesConfig limiter.RulesConfig) error {
 
 	// validate that there is at least one domain config
 	if len(rulesConfig.Domains) == 0 {

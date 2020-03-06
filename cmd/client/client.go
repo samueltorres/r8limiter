@@ -147,7 +147,7 @@ func httpCaller(wg *sync.WaitGroup, client *http.Client, addr string, cancel cha
 // ---------------- Request Builder -----------------
 
 func newRateLimitRequest() *pb.RateLimitRequest {
-	tenant := rand.Intn(10000)
+	tenant := rand.Intn(10000000)
 
 	return &pb.RateLimitRequest{
 		Domain:     "kong",

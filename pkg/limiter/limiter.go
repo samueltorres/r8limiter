@@ -10,7 +10,6 @@ import (
 	rl "github.com/envoyproxy/go-control-plane/envoy/api/v2/ratelimit"
 	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/samueltorres/r8limiter/pkg/rules"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,15 +42,15 @@ func newMetrics(r prometheus.Registerer) *metrics {
 }
 
 type LimiterService struct {
-	rulesService   rules.RulesService
-	counterService *CounterService
+	rulesService   RulesService
+	counterService CounterService
 	logger         *logrus.Logger
 	metrics        *metrics
 }
 
 func NewLimiterService(
-	rulesService rules.RulesService,
-	counterService *CounterService,
+	rulesService RulesService,
+	counterService CounterService,
 	logger *logrus.Logger,
 	registerer prometheus.Registerer) *LimiterService {
 
@@ -92,10 +91,9 @@ func (l *LimiterService) ShouldRateLimit(ctx context.Context, req *pb.RateLimitR
 
 		rule, err := l.rulesService.GetRatelimitRule(req.Domain, desc)
 		if err != nil {
-			if err == rules.ErrNoMatchedRule {
-				return response, nil
+			if err == ErrNoMatchedRule {
+				continue
 			}
-			return nil, err
 		}
 
 		windowSize := timeUnitToWindowSize(rule.Limit.Unit)
@@ -115,12 +113,12 @@ func (l *LimiterService) ShouldRateLimit(ctx context.Context, req *pb.RateLimitR
 			ttl := now + (windowSize * 2)
 
 			if rule.SyncRate == 0 {
-				currUsage, err = l.counterService.AddSync(ctx, key, req.HitsAddend, ttl)
+				currUsage, err = l.counterService.IncrementOnStorage(ctx, key, req.HitsAddend, ttl)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				currUsage, err = l.counterService.Add(ctx, key, req.HitsAddend, ttl, rule.SyncRate)
+				currUsage, err = l.counterService.Increment(ctx, key, req.HitsAddend, ttl, rule.SyncRate)
 				if err != nil {
 					return nil, err
 				}
@@ -132,7 +130,7 @@ func (l *LimiterService) ShouldRateLimit(ctx context.Context, req *pb.RateLimitR
 		{
 			key := generateKey(desc, rule, (now/windowSize)-1)
 			if rule.SyncRate == 0 {
-				previousUsage, _ = l.counterService.GetSync(ctx, key)
+				previousUsage, _ = l.counterService.GetFromStorage(ctx, key)
 			} else {
 				previousUsage, _ = l.counterService.Get(ctx, key)
 			}
@@ -163,7 +161,7 @@ func (l *LimiterService) ShouldRateLimit(ctx context.Context, req *pb.RateLimitR
 	return response, nil
 }
 
-func generateKey(desc *rl.RateLimitDescriptor, rule *rules.Rule, timeValue int64) string {
+func generateKey(desc *rl.RateLimitDescriptor, rule *Rule, timeValue int64) string {
 	usedLimitDescriptorLabels := make(map[string]bool)
 	for _, label := range rule.Labels {
 		usedLimitDescriptorLabels[label.Key] = true

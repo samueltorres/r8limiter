@@ -1,5 +1,5 @@
 run:
-	go run cmd/server/server.go
+	go run cmd/server/server.go --rules-file=./env/rules.yaml
 
 docker-build:
 	docker build -t localhost:32000/r8limiter:0.2 .

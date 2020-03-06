@@ -7,6 +7,7 @@ require (
 	github.com/cncf/udpa/go v0.0.0-20191230090109-edbea6a78f6d // indirect
 	github.com/envoyproxy/go-control-plane v0.9.2
 	github.com/fsnotify/fsnotify v1.4.7
+	github.com/go-redis/redis v6.15.7+incompatible
 	github.com/go-redis/redis/v7 v7.0.0-beta.5
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20191106031601-ce3c9ade29de // indirect

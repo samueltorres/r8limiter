@@ -7,30 +7,41 @@ import (
 	"github.com/go-redis/redis/v7"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samueltorres/r8limiter/pkg/counter"
 	"github.com/sirupsen/logrus"
 )
 
 type metrics struct {
-	addDuration prometheus.Histogram
-	getDuration prometheus.Histogram
+	incDuration      prometheus.Histogram
+	batchIncDuration prometheus.Histogram
+	getDuration      prometheus.Histogram
+	incCount         prometheus.Counter
 }
 
 func newMetrics(r prometheus.Registerer) *metrics {
 	var m metrics
 
-	m.addDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "redis_add_duration_seconds",
-		Help:    "Duration of add operation",
-		Buckets: prometheus.ExponentialBuckets(0.00005, 2, 12),
+	m.incDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "redis_inc_duration_seconds",
+		Help: "Duration of add operation",
+	})
+
+	m.batchIncDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "redis_batchinc_duration_seconds",
+		Help: "Duration of add operation",
 	})
 
 	m.getDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "redis_get_duration_seconds",
-		Help:    "Duration of get operation",
-		Buckets: prometheus.ExponentialBuckets(0.00005, 2, 12),
+		Name: "redis_get_duration_seconds",
+		Help: "Duration of get operation",
 	})
 
-	r.MustRegister(m.addDuration, m.getDuration)
+	m.incCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "redis_inc_total",
+		Help: "Number of counter increments in total, including batch",
+	})
+
+	r.MustRegister(m.incDuration, m.batchIncDuration, m.getDuration, m.incCount)
 	return &m
 }
 
@@ -50,28 +61,84 @@ func NewStorage(client *redis.Client, logger *logrus.Logger, registerer promethe
 	}
 }
 
-func (s Storage) Add(ctx context.Context, key string, n uint32, ttl int64) error {
-	start := time.Now()
+func (s *Storage) BatchIncrement(ctx context.Context, incrs []counter.CounterInc) ([]counter.CounterIncResponse, error) {
+	timer := prometheus.NewTimer(s.metrics.batchIncDuration)
 	defer func() {
-		s.metrics.addDuration.Observe(time.Since(start).Seconds())
+		timer.ObserveDuration()
+	}()
+
+	incrCmds := make([]*redis.IntCmd, len(incrs))
+
+	pipe := s.client.Pipeline()
+	for i, increment := range incrs {
+		incrCmds[i] = pipe.IncrBy(increment.Key, int64(increment.Inc))
+		pipe.ExpireAt(increment.Key, time.Unix(increment.TTL+2, 0))
+	}
+
+	c := make(chan error, 1)
+	go func() {
+		_, err := pipe.Exec()
+		c <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-c:
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	incrResponses := make([]counter.CounterIncResponse, len(incrs))
+	for i, cmd := range incrCmds {
+
+		incrResponses[i] = counter.CounterIncResponse{
+			Key: incrs[i].Key,
+		}
+
+		res, err := cmd.Result()
+		if err != nil {
+			incrResponses[i].Err = errors.Wrap(err, "redis storage pipeline command failure")
+		}
+
+		incrResponses[i].Curr = uint32(res)
+	}
+
+	s.metrics.incCount.Add(float64(len(incrs)))
+
+	return incrResponses, nil
+}
+
+func (s *Storage) Increment(ctx context.Context, key string, n uint32, ttl int64) (uint32, error) {
+	timer := prometheus.NewTimer(s.metrics.incDuration)
+	defer func() {
+		timer.ObserveDuration()
 	}()
 
 	pipe := s.client.Pipeline()
-	pipe.IncrBy(key, int64(n))
+	incrCmd := pipe.IncrBy(key, int64(n))
 	pipe.ExpireAt(key, time.Unix(ttl+2, 0))
 
 	_, err := pipe.Exec()
 	if err != nil {
-		return errors.Wrap(err, "redis storage pipeline failure")
+		return 0, errors.Wrap(err, "redis storage pipeline failure")
 	}
 
-	return nil
+	res, err := incrCmd.Result()
+	if err != nil {
+		return 0, errors.Wrap(err, "redis storage pipeline command failure")
+	}
+
+	s.metrics.incCount.Add(1)
+
+	return uint32(res), nil
 }
 
-func (s Storage) Get(ctx context.Context, key string) (uint32, error) {
-	start := time.Now()
+func (s *Storage) Get(ctx context.Context, key string) (uint32, error) {
+	timer := prometheus.NewTimer(s.metrics.getDuration)
 	defer func() {
-		s.metrics.getDuration.Observe(time.Since(start).Seconds())
+		timer.ObserveDuration()
 	}()
 
 	c, err := s.client.Get(key).Int64()

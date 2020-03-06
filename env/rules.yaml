@@ -3,7 +3,7 @@ domains:
     rules:
       - labels:
           - key: tenant_id
-        syncRate: 3
+        syncRate: -1
         limit:
           unit: minute
           requests: 100000000

@@ -3,9 +3,8 @@ package file
 import (
 	"testing"
 
-	"github.com/samueltorres/r8limiter/pkg/rules"
-
 	rl "github.com/envoyproxy/go-control-plane/envoy/api/v2/ratelimit"
+	"github.com/samueltorres/r8limiter/pkg/limiter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,8 +35,8 @@ func TestGetRatelimitRule(t *testing.T) {
 		file       string
 		domain     string
 		descriptor rl.RateLimitDescriptor
-		limit      rules.Limit
-		error      error
+		want       *limiter.Limit
+		wantErr    error
 	}{
 		{
 			desc:   "tc1",
@@ -55,11 +54,11 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{
+			want: &limiter.Limit{
 				Unit:     "hour",
 				Requests: 1,
 			},
-			error: nil,
+			wantErr: nil,
 		},
 		{
 			desc:   "tc2",
@@ -77,11 +76,11 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{
+			want: &limiter.Limit{
 				Unit:     "hour",
 				Requests: 2,
 			},
-			error: nil,
+			wantErr: nil,
 		},
 		{
 			desc:   "tc3",
@@ -95,11 +94,11 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{
+			want: &limiter.Limit{
 				Unit:     "hour",
 				Requests: 3,
 			},
-			error: nil,
+			wantErr: nil,
 		},
 		{
 			desc:   "tc4",
@@ -117,11 +116,11 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{
+			want: &limiter.Limit{
 				Unit:     "hour",
 				Requests: 4,
 			},
-			error: nil,
+			wantErr: nil,
 		},
 		{
 			desc:   "tc5",
@@ -139,11 +138,11 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{
+			want: &limiter.Limit{
 				Unit:     "hour",
 				Requests: 5,
 			},
-			error: nil,
+			wantErr: nil,
 		},
 		{
 			desc:   "tc6",
@@ -157,8 +156,8 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{},
-			error: rules.ErrNoMatchedRule,
+			want:    nil,
+			wantErr: limiter.ErrNoMatchedRule,
 		},
 		{
 			desc:   "tc7",
@@ -172,8 +171,8 @@ func TestGetRatelimitRule(t *testing.T) {
 					},
 				},
 			},
-			limit: rules.Limit{},
-			error: rules.ErrNoMatchedRule,
+			want:    nil,
+			wantErr: limiter.ErrNoMatchedRule,
 		},
 	}
 	for _, tC := range testCases {
@@ -184,15 +183,25 @@ func TestGetRatelimitRule(t *testing.T) {
 				assert.FailNow(t, "could not initialize rule service", err)
 			}
 
-			descriptor, err := rs.GetRatelimitRule(tC.domain, &tC.descriptor)
+			got, err := rs.GetRatelimitRule(tC.domain, &tC.descriptor)
 
-			if !assert.Equal(t, tC.error, err) {
-				assert.FailNow(t, "")
+			if tC.wantErr != err {
+				t.Errorf("got %v, want %v", err, tC.wantErr)
 			}
 
-			if tC.error == nil {
-				assert.Equal(t, tC.limit.Unit, descriptor.Limit.Unit, "invalid limit unit")
-				assert.Equal(t, tC.limit.Requests, descriptor.Limit.Requests, "invalid request limit number")
+			if tC.want == nil {
+				if got != nil {
+					t.Errorf("got %v, want nil", got)
+				}
+				return
+			}
+
+			if tC.want.Requests != got.Limit.Requests {
+				t.Errorf("got %v, want %v", got.Limit.Requests, tC.want.Requests)
+			}
+
+			if tC.want.Unit != got.Limit.Unit {
+				t.Errorf("got %v, want %v", got.Limit.Unit, tC.want.Unit)
 			}
 		})
 	}
